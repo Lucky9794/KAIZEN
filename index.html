@@ -1604,25 +1604,7 @@ async function pcGetSDF(cid){
 
 // ── Fetch PDB for a single CID via PubChem 3D conformer ──
 async function pcGetPDB(cid){
-  // PubChem serves PDB via the pugrest conformer endpoint
-  // Correct URL: /compound/cid/{cid}/record/SDF then convert,
-  // OR use the direct PDB endpoint below (works for most CIDs with 3D conformers)
-  const urls = [
-    `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${cid}/record/PDB`,
-    `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${cid}/record/ASN`,
-  ];
-  for(const url of urls){
-    try{
-      const r = await fetch(url);
-      if(r.ok){
-        const text = await r.text();
-        if(text && text.trim().length > 10) return {text, ok:true};
-      }
-    } catch(e){}
-  }
-  // Fallback: generate a minimal valid PDB from SDF data
-  return {text: null, ok: false};
-}
+try{const sdfURL=`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${cid}/record/SDF?record_type=3d`;const sdfResp=await fetch(sdfURL);if(!sdfResp.ok) throw new Error("Cannot fetch SDF");const sdfText=await sdfResp.text();const blob=new Blob([sdfText],{type:"chemical/x-mdl-sdfile"});const formData=new FormData();formData.append("file",blob,"input.sdf");const response=await fetch("https://kaizen-openbabel-api.onrender.com/sdf_to_pdb",{method:"POST",body:formData});if(!response.ok) throw new Error("OpenBabel conversion failed");const pdbText=await response.text();return {ok:true,text:pdbText};}catch(err){console.error(err);return {ok:false,text:""};}}
 
 // ── Generate minimal PDB from compound properties (fallback) ──
 function generatePDBfallback(cid, name, smiles){
