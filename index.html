@@ -1601,11 +1601,69 @@ async function pcGetSDF(cid){
   }
   return null;
 }
-
-// ── Fetch PDB for a single CID via PubChem 3D conformer ──
+// — Fetch PDB for a single CID using OpenBabel API —
 async function pcGetPDB(cid){
-try{const sdfURL=`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${cid}/record/SDF?record_type=3d`;const sdfResp=await fetch(sdfURL);if(!sdfResp.ok) throw new Error("Cannot fetch SDF");const sdfText=await sdfResp.text();const blob=new Blob([sdfText],{type:"chemical/x-mdl-sdfile"});const formData=new FormData();formData.append("file",blob,"input.sdf");const response=await fetch("https://kaizen-openbabel-api.onrender.com/sdf_to_pdb",{method:"POST",body:formData});if(!response.ok) throw new Error("OpenBabel conversion failed");const pdbText=await response.text();return {ok:true,text:pdbText};}catch(err){console.error(err);return {ok:false,text:""};}}
 
+    try{
+
+        // Try 3D SDF first
+        let sdfResp = await fetch(
+            `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${cid}/record/SDF?record_type=3d`
+        );
+
+        // If 3D unavailable, try normal SDF
+        if(!sdfResp.ok){
+            sdfResp = await fetch(
+                `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${cid}/record/SDF`
+            );
+        }
+
+        if(!sdfResp.ok){
+            throw new Error("Cannot fetch SDF");
+        }
+
+        const sdfText = await sdfResp.text();
+
+        const formData = new FormData();
+
+        formData.append(
+            "file",
+            new Blob([sdfText], {type:"chemical/x-mdl-sdfile"}),
+            "input.sdf"
+        );
+
+        const response = await fetch(
+            "https://kaizen-openbabel-api.onrender.com/sdf_to_pdb",
+            {
+                method:"POST",
+                body:formData
+            }
+        );
+
+        if(!response.ok){
+            throw new Error(await response.text());
+        }
+
+        const pdbText = await response.text();
+
+        return {
+            ok:true,
+            text:pdbText
+        };
+
+    }
+    catch(err){
+
+        console.error(err);
+
+        return {
+            ok:false,
+            text:null
+        };
+
+    }
+
+}
 // ── Generate minimal PDB from compound properties (fallback) ──
 function generatePDBfallback(cid, name, smiles){
   const now = new Date().toISOString().slice(0,10);
